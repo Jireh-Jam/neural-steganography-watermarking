@@ -14,7 +14,7 @@ A research implementation of deep learning-based steganography using perceptual 
 
 ## Installation
 ```bash
-git clone [https://github.com/Jireh-Jam/neural-steganography-watermarking.git]
+git clone https://github.com/Jireh-Jam/neural-steganography-watermarking.git
 cd neural-steganography
 pip install -r requirements.txt
 
@@ -48,5 +48,5 @@ secret = extract_message(decoder, "stego_image.png")
   year = {2023},
   publisher = {GitHub},
   journal = {GitHub repository},
-  howpublished = {\url{https://github.com/Jireh-Jam/watermarking}}
+  howpublished = {\url{https://github.com/Jireh-Jam/neural-steganography-watermarking}}
 }
