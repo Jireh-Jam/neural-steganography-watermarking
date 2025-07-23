@@ -48,5 +48,5 @@ secret = extract_message(decoder, "stego_image.png")
   year = {2023},
   publisher = {GitHub},
   journal = {GitHub repository},
-  howpublished = {\url{https://github.com/yourusername/neural-steganography}}
+  howpublished = {\url{https://github.com/Jireh-Jam/watermarking}}
 }
