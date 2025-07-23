@@ -14,7 +14,7 @@ A research implementation of deep learning-based steganography using perceptual 
 
 ## Installation
 ```bash
-git clone https://github.com/jireh-Jam/neural-steganography.git
+git clone https://github.com/Jireh-Jam/watermarking.git
 cd neural-steganography
 pip install -r requirements.txt
 
