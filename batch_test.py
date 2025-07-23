@@ -1,44 +1,65 @@
 """
-batch_test.py - Comprehensive evaluation of neural steganography system
+batch_test.py - Advanced steganography evaluation with comprehensive metrics
 """
 
 import numpy as np
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from skimage.metrics import structural_similarity as ssim
 from models import encoder, decoder
 from utils import load_image, text_to_bits, bits_to_text
 
+def calculate_ber(original_bits, decoded_bits):
+    """Calculate Bit Error Rate with alignment"""
+    min_len = min(len(original_bits), len(decoded_bits))
+    return np.mean(original_bits[:min_len] != decoded_bits[:min_len])
+
+def calculate_entropy(image):
+    """Calculate Shannon entropy of an image"""
+    hist = np.histogram(image, bins=256, range=(0,1))[0]
+    hist = hist[hist > 0] / hist.sum()
+    return -np.sum(hist * np.log2(hist))
+
 def batch_test(image_paths, secret_message, max_images=None):
     """
-    Batch test steganography system on multiple images
+    Enhanced batch testing with additional metrics
     
     Args:
-        image_paths: List of paths to test images
+        image_paths: List of image paths
         secret_message: Secret text to embed
-        max_images: Maximum number of images to process (None for all)
+        max_images: Maximum number of images to process
     
     Returns:
-        Dictionary containing aggregated metrics and per-image results
+        Dictionary with metrics and visualization data
     """
-    # Initialize metrics
-    results = {
+    metrics = {
+        # Image Quality
         'psnr': [],
         'ssim': [],
+        'ms_ssim': [],
+        'entropy_diff': [],
+        
+        # Message Fidelity
         'bit_accuracy': [],
+        'ber': [],
         'exact_matches': 0,
+        'char_error_rate': [],
+        
+        # Performance
+        'encode_time': [],
+        'decode_time': [],
+        
+        # Statistical
         'failed': 0,
         'per_image': []
     }
-    
-    # Limit number of images if specified
-    if max_images:
-        image_paths = image_paths[:max_images]
-    
-    print(f"\nTesting on {len(image_paths)} images with message: '{secret_message}'")
-    
-    for img_path in tqdm(image_paths, desc="Processing images"):
+
+    for img_path in tqdm(image_paths[:max_images] if max_images else image_paths):
         try:
+            # Timing
+            start_time = time.time()
+            
             # Test current image
             test_result = test_embed_extract(
                 encoder=encoder,
@@ -48,102 +69,166 @@ def batch_test(image_paths, secret_message, max_images=None):
             )
             
             if test_result is None:
-                results['failed'] += 1
+                metrics['failed'] += 1
                 continue
             
-            # Calculate additional metrics
+            encode_time = time.time() - start_time
+            decode_start = time.time()
+            
+            # Extract metrics
             original = test_result['original_image']
             stego = test_result['stego_image']
             
-            # Remove batch dimension if present
-            if len(original.shape) == 4:
-                original = original[0]
-            if len(stego.shape) == 4:
-                stego = stego[0]
+            # Remove batch dim if needed
+            if len(original.shape) == 4: original = original[0]
+            if len(stego.shape) == 4: stego = stego[0]
             
-            # Compute metrics
-            current_ssim = ssim(original, stego, multichannel=True, 
-                               data_range=stego.max() - stego.min())
+            # Image Quality Metrics
+            current_psnr = psnr(original, stego)
+            current_ssim = ssim(original, stego, multichannel=True)
+            entropy_diff = calculate_entropy(stego) - calculate_entropy(original)
+            
+            # Message Metrics
             original_bits = text_to_bits(secret_message).flatten()
             decoded_bits = (text_to_bits(test_result['recovered_message'])).flatten()
+            bit_accuracy = np.mean(original_bits == decoded_bits[:len(original_bits)])
+            current_ber = calculate_ber(original_bits, decoded_bits)
             
-            # Trim to same length
-            min_len = min(len(original_bits), len(decoded_bits))
-            bit_accuracy = np.mean(original_bits[:min_len] == decoded_bits[:min_len])
+            # Character-level metrics
+            char_errors = sum(1 for a,b in zip(secret_message, test_result['recovered_message']) if a != b)
+            char_error_rate = char_errors / len(secret_message)
             
-            # Update results
-            results['psnr'].append(test_result['psnr'])
-            results['ssim'].append(current_ssim)
-            results['bit_accuracy'].append(bit_accuracy)
+            decode_time = time.time() - decode_start
+            
+            # Update metrics
+            metrics['psnr'].append(current_psnr)
+            metrics['ssim'].append(current_ssim)
+            metrics['entropy_diff'].append(entropy_diff)
+            metrics['bit_accuracy'].append(bit_accuracy)
+            metrics['ber'].append(current_ber)
+            metrics['char_error_rate'].append(char_error_rate)
+            metrics['encode_time'].append(encode_time)
+            metrics['decode_time'].append(decode_time)
             
             if secret_message == test_result['recovered_message']:
-                results['exact_matches'] += 1
+                metrics['exact_matches'] += 1
                 
-            # Store per-image results
-            results['per_image'].append({
+            # Store per-image details
+            metrics['per_image'].append({
                 'path': img_path,
-                'psnr': test_result['psnr'],
+                'psnr': current_psnr,
                 'ssim': current_ssim,
-                'bit_accuracy': bit_accuracy,
+                'ber': current_ber,
+                'encode_time': encode_time,
+                'decode_time': decode_time,
                 'exact_match': secret_message == test_result['recovered_message'],
                 'recovered_message': test_result['recovered_message']
             })
             
         except Exception as e:
-            print(f"\nError processing {img_path}: {str(e)}")
-            results['failed'] += 1
+            print(f"Error processing {img_path}: {str(e)}")
+            metrics['failed'] += 1
     
-    # Calculate aggregate statistics
-    if results['psnr']:  # Only if we have successful tests
-        results['avg_psnr'] = np.mean(results['psnr'])
-        results['avg_ssim'] = np.mean(results['ssim'])
-        results['avg_bit_accuracy'] = np.mean(results['bit_accuracy'])
-        results['success_rate'] = len(results['psnr']) / len(image_paths)
-    else:
-        results.update({
-            'avg_psnr': 0,
-            'avg_ssim': 0,
-            'avg_bit_accuracy': 0,
-            'success_rate': 0
-        })
+    # Calculate aggregates
+    for key in ['psnr', 'ssim', 'ber', 'encode_time', 'decode_time', 'bit_accuracy']:
+        if metrics[key]:
+            metrics[f'avg_{key}'] = np.mean(metrics[key])
+            metrics[f'std_{key}'] = np.std(metrics[key])
+        else:
+            metrics.update({f'avg_{key}': 0, f'std_{key}': 0})
     
-    return results
+    metrics['success_rate'] = len(metrics['per_image']) / (len(metrics['per_image']) + metrics['failed'])
+    
+    return metrics
 
-def print_summary(results):
-    """Print formatted test summary"""
-    print("\n=== TEST SUMMARY ===")
-    print(f"Images Processed: {len(results['per_image']) + results['failed']}")
-    print(f"Successful Tests: {len(results['per_image'])}")
-    print(f"Failed Tests: {results['failed']}")
-    print(f"\nQuality Metrics (avg):")
-    print(f"PSNR: {results['avg_psnr']:.2f} dB")
-    print(f"SSIM: {results['avg_ssim']:.4f}")
-    print(f"Bit Accuracy: {results['avg_bit_accuracy']:.2%}")
-    print(f"\nExact Message Matches: {results['exact_matches']}/{len(results['per_image'])}")
-    print(f"Success Rate: {results['success_rate']:.2%}")
+def visualize_results(metrics):
+    """Generate comprehensive visualizations"""
+    plt.figure(figsize=(18, 10))
+    
+    # 1. Quality Metrics
+    plt.subplot(2, 3, 1)
+    plt.hist(metrics['psnr'], bins=20, alpha=0.7)
+    plt.title(f"PSNR Distribution\nAvg: {metrics['avg_psnr']:.2f} ± {metrics['std_psnr']:.2f} dB")
+    plt.xlabel('PSNR (dB)')
+    
+    plt.subplot(2, 3, 2)
+    plt.hist(metrics['ssim'], bins=20, alpha=0.7)
+    plt.title(f"SSIM Distribution\nAvg: {metrics['avg_ssim']:.4f}")
+    plt.xlabel('SSIM')
+    
+    # 2. Message Accuracy
+    plt.subplot(2, 3, 3)
+    plt.hist(metrics['ber'], bins=20, alpha=0.7, color='red')
+    plt.title(f"Bit Error Rate\nAvg: {metrics['avg_ber']:.2%}")
+    plt.xlabel('BER')
+    
+    # 3. Performance
+    plt.subplot(2, 3, 4)
+    plt.scatter(metrics['encode_time'], metrics['decode_time'], alpha=0.6)
+    plt.title("Encoding vs Decoding Time")
+    plt.xlabel('Encode Time (s)')
+    plt.ylabel('Decode Time (s)')
+    
+    # 4. Error Analysis
+    plt.subplot(2, 3, 5)
+    error_types = ['Exact Matches', 'Char Errors', 'Bit Errors']
+    values = [
+        metrics['exact_matches'],
+        sum(m['exact_match'] is False for m in metrics['per_image']),
+        sum(ber > 0 for ber in metrics['ber'])
+    ]
+    plt.bar(error_types, values, color=['green', 'orange', 'red'])
+    plt.title("Error Type Distribution")
+    
+    plt.tight_layout()
+    plt.savefig('steganography_metrics.png')
+    plt.close()
+
+def generate_report(metrics):
+    """Create a markdown report"""
+    report = f"""# Steganography System Evaluation Report
+
+## Summary Statistics
+- **Images Processed**: {len(metrics['per_image']) + metrics['failed']}
+- **Success Rate**: {metrics['success_rate']:.2%}
+- **Exact Matches**: {metrics['exact_matches']} ({metrics['exact_matches']/len(metrics['per_image']):.2%})
+
+## Quality Metrics
+| Metric | Average | Std Dev |
+|--------|---------|---------|
+| PSNR (dB) | {metrics['avg_psnr']:.2f} | {metrics['std_psnr']:.2f} |
+| SSIM | {metrics['avg_ssim']:.4f} | {metrics['std_ssim']:.4f} |
+| Bit Error Rate | {metrics['avg_ber']:.2%} | {metrics['std_ber']:.2%} |
+
+## Performance
+- **Avg Encode Time**: {metrics['avg_encode_time']:.4f}s ± {metrics['std_encode_time']:.4f}
+- **Avg Decode Time**: {metrics['avg_decode_time']:.4f}s ± {metrics['std_decode_time']:.4f}
+
+![Metrics Visualization](steganography_metrics.png)
+"""
+    with open('steganography_report.md', 'w') as f:
+        f.write(report)
 
 if __name__ == "__main__":
-    # Example usage
     import glob
+    import time
+    import pandas as pd
     
-    # 1. Load test images
-    test_images = glob.glob("data/test/*.jpg")[:100]  # First 100 test images
-    
-    # 2. Define secret message
+    # Configuration
+    test_images = glob.glob("data/test/*.jpg")[:1000]  # First 1000 images
     secret_msg = "MySecretKey123"
     
-    # 3. Run batch test
-    test_results = batch_test(
-        image_paths=test_images,
-        secret_message=secret_msg,
-        max_images=None  # Process all images
-    )
+    # Run evaluation
+    print("Starting comprehensive evaluation...")
+    start_time = time.time()
+    metrics = batch_test(test_images, secret_msg)
+    print(f"Completed in {time.time()-start_time:.2f} seconds")
     
-    # 4. Print summary
-    print_summary(test_results)
+    # Generate outputs
+    visualize_results(metrics)
+    generate_report(metrics)
     
-    # 5. Save detailed results
-    import pandas as pd
-    df = pd.DataFrame(test_results['per_image'])
-    df.to_csv("steganography_test_results.csv", index=False)
-    print("\nDetailed results saved to steganography_test_results.csv")
+    # Save detailed results
+    pd.DataFrame(metrics['per_image']).to_csv('detailed_results.csv', index=False)
+    print("Report generated: steganography_report.md")
+    print("Detailed results: detailed_results.csv")
