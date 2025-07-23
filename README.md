@@ -4,6 +4,8 @@
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 
 A research implementation of deep learning-based steganography using perceptual losses from VGG19/ResNet/MobileNetV2 to hide secret messages in images while preserving visual quality.
+<img width="1219" height="678" alt="image" src="https://github.com/user-attachments/assets/f5bafc31-7cbb-4a1f-9242-7360665b6f7b" />
+
 
 ## Key Features
 - 🖼️ Encoder-Decoder architecture for message embedding/extraction
