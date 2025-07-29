@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Jam"
+  given-names: "Jireh"
+  orcid: " https://orcid.org/0000-0003-2309-4655"
+title: "Neural Stenography Watermarking"
+version: 1.0.0
+doi: 10.1234/zenodo.5678
+date-released: 2023-01-01
+url: "https://github.com/Jireh-Jam/neural-stenography-watermarking"
