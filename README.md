@@ -47,7 +47,7 @@ secret = extract_message(decoder, "stego_image.png")
 @software{Jireh-Jam_NeuralSteg,
   author = {Jireh Jam},
   title = {Neural Steganography with Perceptual Losses},
-  year = {2023},
+  year = {2025},
   publisher = {GitHub},
   journal = {GitHub repository},
   howpublished = {\url{https://github.com/Jireh-Jam/neural-steganography-watermarking}}
